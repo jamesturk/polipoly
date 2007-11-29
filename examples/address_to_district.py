@@ -18,7 +18,7 @@ import cgi
 from polipoly import AddressToDistrictService
 
 GMAPS_API_KEY = 'define-me'
-PATH_TO_CDFILES = 
+PATH_TO_CDFILES = ''
 
 # run as a module
 if __name__ == '__main__':
