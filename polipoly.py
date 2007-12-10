@@ -1,4 +1,4 @@
-"""Python library for dealing with political boundaries
+"""Python library for working with political boundaries
 
 Political boundaries are defined by one or more polygons and obtained
 from census.gov shapefiles.  Census boundary shapefiles are available at 
@@ -7,6 +7,11 @@ http://www.census.gov/geo/www/cob/bdy_files.html.
 At the moment this library has only been used with State and Congressional
 District boundaries.
 """
+
+__author__ = "James Turk (james.p.turk@gmail.com)"
+__version__ = "0.1.0"
+__copyright__ = "Copyright (c) 2007 Sunlight Labs"
+__license__ = "BSD"
 
 import urllib
 from shapelib import ShapeFile
