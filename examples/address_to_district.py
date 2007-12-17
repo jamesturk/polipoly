@@ -15,51 +15,85 @@ The CGI script takes two parameters:
 '''
 
 import cgi
-from polipoly import AddressToDistrictService
+import re
+from polipoly import AddressToDistrictService, GeocodingError
 
 GMAPS_API_KEY = 'define-me'
-PATH_TO_CDFILES = ''
+PATH_TO_CDFILES = 'cd99_110'
 
-# run as a module
-if __name__ == '__main__':
+class ApiException(Exception):
 
+    # these codes are in the 300s to fit the sunlight API
+    STATUS_CODES = {
+        300: 'Google returned a server error when attempting to geocode',
+        301: 'Empty address string',
+        302: 'Unknown address',
+        303: 'Prohibited address',
+        304: 'Unknown geocoding error',
+        305: 'Address refers to a PO Box',
+        306: 'Address does not fall within a congressional district',
+        320: 'Too many requests to geocoding service'}
+
+    def __init__(self, code):
+        self.code = code
+       
+    def __str__(self):
+        return '%d: %s' % (self.code, self.STATUS_CODES[self.code])
+
+def main():
     # get address field and output type
     fields = cgi.FieldStorage()
-    addr = fields.getvalue('address')
+    addr = fields.getvalue('address') or ''
     output = fields.getvalue('output')
+    
+    # discard blank addresses as error 301
+    if re.match('^\s*$', addr):
+        raise ApiException(301)
+    
+    # discard PO Box addresses as error 305
+    pobox = re.compile('[Pp]\.?[Oo]\.?\s*(?:box|Box|BOX)')
+    if pobox.search(addr):
+        raise ApiException(305)
 
-    # plaintext error if no address is provided
-    if addr is None:
-        print 'Content-type: text/plain\n'
-        print 'error: must provide address parameter'
+    # create service and get a district
+    service = AddressToDistrictService(GMAPS_API_KEY, PATH_TO_CDFILES)
+    try:
+        lat, lng, districts = service.address_to_district(addr)
+    except GeocodingError, ge:
+        # convert GeocodingError to API error code (300-303 and 320)
+        err_dict = {500: 300, 601: 301, 602: 302, 603: 303, 620: 320}
+        raise ApiException(err_dict.get(ge.code,304))
+    
+    # 306: address did not fall within congressional district
+    if len(districts) == 0:
+        raise ApiException(306)
+
+    # XML output
+    if output == 'xml':
+        dist_str = '\n'.join(['  <district state="%s">%s</district>' % dist 
+                              for dist in districts])
+        print 'Content-type: text/xml\n'
+        print '''<results>
+<address>%s</address>
+<latitude>%s</latitude>
+<longitude>%s</longitude>
+<districts>
+%s
+</districts>
+</results>''' % (addr, lat, lng, dist_str)
+    
+    # JSON output (default)
     else:
-        # create service and find out districts
-        service = AddressToDistrictService(GMAPS_API_KEY, PATH_TO_CDFILES)
-        lat, lng, districts = service.address_to_district(addr)       
-        
-        # JSON output (default)
-        if output is None or output == 'json':
-            print 'Content-type: application/json\n'
-            dist_str = ','.join(['{"state":"%s", "district":"%s"}' % dist 
-                                    for dist in districts])
-            print '''{"address":"%s", "latitude":"%s", "longitude":"%s",
+        dist_str = ','.join(['{"state":"%s", "district":"%s"}' % dist 
+                                for dist in districts])
+        print 'Content-type: application/json\n'
+        print '''{"address":"%s", "latitude":"%s", "longitude":"%s",
 "districts": [ %s ] }''' % (addr, lat, lng, dist_str)
 
-        # XML output
-        elif output == 'xml':
-            print 'Content-type: text/xml\n'
-            dist_str = '\n'.join(['  <district state="%s">%s</district>' % dist 
-                                    for dist in districts])
-            print '''<results>
-  <address>%s</address>
-  <latitude>%s</latitude>
-  <longitude>%s</longitude>
-  <districts>
-  %s
-  </districts>
-</results>''' %  (addr, lat, lng, dist_str)
 
-        else:
-            print 'Content-type: text/plain\n'
-            print 'error: invalid output parameter specified'
-
+if __name__ == '__main__':
+    try:
+        main()
+    except ApiException,e:
+        print 'Content-type: text/plain\n'
+        print e

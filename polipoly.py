@@ -74,19 +74,19 @@ class GeocodingError(Exception):
     See http://www.google.com/apis/maps/documentation/reference.html#GGeoStatusCode
     """
         
-    STATUS_CODES = {'500': 'Unknown Geocoding Server Error',
-                    '601': 'Empty Address',
-                    '602': 'Unknown Address',
-                    '603': 'Prohibited Address',
-                    '610': 'Bad API Key',
-                    '620': 'Too Many Requests'}
+    STATUS_CODES = {500: 'Unknown Geocoding Server Error',
+                    601: 'Empty Address',
+                    602: 'Unknown Address',
+                    603: 'Prohibited Address',
+                    610: 'Bad API Key',
+                    620: 'Too Many Requests'}
 
     def __init__(self, code):
         Exception.__init__(self)
-        self.code = code
+        self.code = int(code)
     
     def __str__(self):
-        return 'GeocodingError: %s - %s' % (self.code, 
+        return 'GeocodingError: %d - %s' % (self.code, 
                                             self.STATUS_CODES[self.code])
 class ShapefileError(Exception):
     """ Exception for problems with census shapefiles."""
