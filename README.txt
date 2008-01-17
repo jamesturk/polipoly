@@ -3,7 +3,7 @@ polipoly - Python library for dealing with political boundaries.  Enables
 
 http://polipoly.googlecode.com/
 
-polipoly is a project of Sunlight Labs (C) 2007 see LICENSE.txt for details
+polipoly is a project of Sunlight Labs (C) 2007-2008 see LICENSE.txt for details
 
 Files Included
 ==============
