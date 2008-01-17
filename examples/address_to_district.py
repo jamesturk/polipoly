@@ -9,9 +9,10 @@ Be sure to set GMAPS_API_KEY and PATH_TO_CDFILES appropriately:
     GMAPS_API_KEY: Google Maps key (http://www.google.com/apis/maps/signup.html)
     PATH_TO_CDFILES: copy of cd99 (http://www.census.gov/geo/www/cob/cd110.html)
 
-The CGI script takes two parameters:
+The CGI script takes three parameters:
     addr -- address string in any format the google geocoder can handle
     output -- optional parameter specifying formatting ('xml' or default 'json')
+    geocoder -- optional parameter specifying which geocoder to use
 '''
 
 import cgi
@@ -20,7 +21,7 @@ from polipoly import AddressToDistrictService, GeocodingError
 
 PATH_TO_CDFILES = 'congdist/cd99_110'
 GEOCODER = AddressToDistrictService.GEOCODER_US
-GMAPS_API_KEY = 'define-me'
+GMAPS_API_KEY = None
 
 class ApiException(Exception):
 
@@ -46,6 +47,13 @@ def main():
     fields = cgi.FieldStorage()
     addr = fields.getvalue('address') or ''
     output = fields.getvalue('output')
+    geocoder_name = fields.getvalue('geocoder')
+    if geocoder_name == 'googlemaps' and GMAPS_API_KEY:
+        geocoder = AddressToDistrictService.GEOCODER_GMAPS
+        geocoder_name = 'googlemaps'
+    else:
+        geocoder = AddressToDistrictService.GEOCODER_US
+        geocoder_name = 'geocoder.us'
 
     # discard blank addresses as error 301
     if re.match('^\s*$', addr):
@@ -75,21 +83,22 @@ def main():
                               for dist in districts])
         print 'Content-type: text/xml\n'
         print '''<results>
+<geocoder>%s</geocoder>
 <address>%s</address>
 <latitude>%s</latitude>
 <longitude>%s</longitude>
 <districts>
 %s
 </districts>
-</results>''' % (addr, lat, lng, dist_str)
+</results>''' % (geocoder_name, addr, lat, lng, dist_str)
 
     # JSON output (default)
     else:
         dist_str = ','.join(['{"state":"%s", "district":"%s"}' % dist
                                 for dist in districts])
         print 'Content-type: application/json\n'
-        print '''{"address":"%s", "latitude":"%s", "longitude":"%s",
-"districts": [ %s ] }''' % (addr, lat, lng, dist_str)
+        print '''{"geocoder":"%s", "address":"%s", "latitude":"%s", "longitude":"%s",
+"districts": [ %s ] }''' % (geocoder_name, addr, lat, lng, dist_str)
 
 
 if __name__ == '__main__':
