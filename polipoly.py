@@ -1,16 +1,16 @@
 """Python library for working with political boundaries
 
 Political boundaries are defined by one or more polygons and obtained
-from census.gov shapefiles.  Census boundary shapefiles are available at 
-http://www.census.gov/geo/www/cob/bdy_files.html.  
+from census.gov shapefiles.  Census boundary shapefiles are available at
+http://www.census.gov/geo/www/cob/bdy_files.html.
 
 At the moment this library has only been used with State and Congressional
 District boundaries.
 """
 
 __author__ = "James Turk (james.p.turk@gmail.com)"
-__version__ = "0.1.0"
-__copyright__ = "Copyright (c) 2007 Sunlight Labs"
+__version__ = "0.1.5"
+__copyright__ = "Copyright (c) 2007-2008 Sunlight Labs"
 __license__ = "BSD"
 
 import urllib
@@ -22,14 +22,14 @@ from dbflib import DBFFile
 # internally used helper function
 def left_of_edge(point, ep1, ep2):
     """Determine if point is left of infinite line touching ep1 and ep2"""
-    return ((ep1[0]-point[0])*(ep2[1]-point[1]) - 
+    return ((ep1[0]-point[0])*(ep2[1]-point[1]) -
             (ep2[0]-point[0])*(ep1[1]-point[1])) < 0
-   
- 
+
+
 class Polygon(object):
     ''' Simple polygon class used for point containment testing and conversion
-    
-    Allows for testing if a polygon contains a point as well as conversion 
+
+    Allows for testing if a polygon contains a point as well as conversion
     to various portable representations '''
 
     def __init__(self, vertices):
@@ -45,7 +45,7 @@ class Polygon(object):
         for i in xrange(len(self.vertices)-1):
 
             # add wind if edge crosses point going up and point is to left
-            if (self.vertices[i][1] < point[1] < self.vertices[i+1][1] and 
+            if (self.vertices[i][1] < point[1] < self.vertices[i+1][1] and
                 left_of_edge(point, self.vertices[i], self.vertices[i+1])):
                 winds += 1
             # end wind if edge crosses point going down and point is to right
@@ -58,7 +58,7 @@ class Polygon(object):
 
     def to_kml(self):
         ''' get KML polygon representation '''
-        
+
         coordstr = ' '.join("%.15f,%.15f" % v for v in self.vertices)
 
         return '''<Polygon><outerBoundaryIs><LinearRing>
@@ -70,10 +70,10 @@ class Polygon(object):
 class GeocodingError(Exception):
     """Custom exception which maps possible google geocoder error codes to
     human readable strings.
-        
+
     See http://www.google.com/apis/maps/documentation/reference.html#GGeoStatusCode
     """
-        
+
     STATUS_CODES = {500: 'Unknown Geocoding Server Error',
                     601: 'Empty Address',
                     602: 'Unknown Address',
@@ -81,21 +81,26 @@ class GeocodingError(Exception):
                     610: 'Bad API Key',
                     620: 'Too Many Requests'}
 
-    def __init__(self, code):
+    def __init__(self, code, extra=None):
         Exception.__init__(self)
         self.code = int(code)
-    
+        self.extra = extra
+
     def __str__(self):
-        return 'GeocodingError: %d - %s' % (self.code, 
+        desc = 'GeocodingError: %d - %s' % (self.code,
                                             self.STATUS_CODES[self.code])
+        if self.extra:
+            desc += ' (%s)' % self.extra
+
+
 class ShapefileError(Exception):
     """ Exception for problems with census shapefiles."""
     def __init__(self, message):
         Exception.__init__(self, message)
-    
+
     def __str__(self):
         return 'ShapefileError: %s' % (self.message)
-        
+
 
 ### Census Shapefiles ###
 
@@ -115,7 +120,7 @@ FIPS_TO_STATE = {
 
 class Entity(object):
     """ A named list of polygons associated with a political boundary.
-    
+
         eg. a state, congressional district, or school district"""
 
     def __init__(self, name, entity, vertices, extents):
@@ -187,10 +192,10 @@ class State(Entity):
     def from_shapefile(obj, rec):
         """ Construct a State from a census.gov shapefile """
         return State(obj.vertices(), obj.extents(), rec['NAME'])
-        
+
 def read_census_shapefile(filename):
     """Read census shapefile and return list of entity-derived objects.
-    
+
     Given the base name of a census .shp/.dbf file returns a list of all
     Entity-derived objects described by the the file.
     """
@@ -219,42 +224,40 @@ def read_census_shapefile(filename):
     # shp.info()[0] is the number of objects
     return [Entity.from_shapefile(shp.read_object(i), dbf.read_record(i))
             for i in xrange(shape_count)]
-       
 
-### Geocoding ###       
-     
+
+### Geocoding ###
+
 class AddressToDistrictService(object):
-    """Reusable service which maps addresses to districts using the census
-    data and the google geocoder.  
-        
-    Usage:
-      service = AddressToDistrictService('google-maps-apikey','path-to-cd99')
-      lat,lng,district = service.address_to_district('address')
-    """
+    """Abstract base class for service which maps addresses to districts using
+    the census data and a geocoder."""
 
-    def __init__(self, apikey, census_file):
+    GEOCODER_GMAPS = 1
+    GEOCODER_US = 2
+
+    def __init__(self, census_file, geocoder=GEOCODER_US, apikey=None):
         """AddressToDistrictService constructor
-        
-        Initialize given a google maps API key and a path to a census.gov
-        all congressional districts (cd99) dataset.
-            
-        Google maps API keys are available from:
-            http://www.google.com/apis/maps/signup.html
-            
-        The cd99_110 dataset is available from: 
+
+        Initialize given a path to a census.gov all congressional districts
+        (cd99) dataset.
+
+        The cd99_110 dataset is available from:
             http://www.census.gov/geo/www/cob/cd110.html
         """
+        if geocoder == self.GEOCODER_GMAPS and not apikey:
+            raise GeocodingError(610)   # bad api key
 
-        self.apikey = apikey
         self.boundaries = read_census_shapefile(census_file)
+        self.geocoder = geocoder
+        self.apikey = apikey
 
-    def geocode(self, address):
+    def _google_geocode(self, address):
         """Convert an address into a latitude/longitude via google maps"""
-        
+
         url = 'http://maps.google.com/maps/geo?output=csv&q=%s&key=%s' % \
          (urllib.quote(address), self.apikey)
         # returns status,level-of-detail,lat,long
-        status, lat, lat, lng = urllib.urlopen(url).read().split(',')
+        status, _, lat, lng = urllib.urlopen(url).read().split(',')
 
         # 200 - OK
         if status == '200':
@@ -262,15 +265,41 @@ class AddressToDistrictService(object):
         else:
             raise GeocodingError(status)
 
+    def _geocoderus_geocode(self, address):
+        """Convert an address into a latitude/longitude via geocoder.us"""
+
+        if not address:
+            raise GeocodingError(601)   # empty address
+
+        url = 'http://rpc.geocoder.us/service/csv?address=%s' % \
+              urllib.quote(address)
+        data = urllib.urlopen(url).readline()   # only get first line for now
+
+        # returns lat,long,street,city,state,zip or #: errmsg
+        if data.startswith('2:'):
+            raise GeocodingError(602)   # address not found
+
+        try:
+            lat, lng, _, _, _, _ = data.split(',')
+            return lat, lng
+        except ValueError:
+            raise GeocodingError(500, data) # unmapped error
+
+    def lat_long_to_district(self, lat, lng):
+        """ Obtain the district containing a given latitude and longitude."""
+        flat, flng = float(lat), float(lng)
+        return lat, lng, [(cb.state, cb.district) for cb in self.boundaries
+                            if cb.contains((flng,flat))]
+
     def address_to_district(self, address):
         """Given an address returns the congressional district it lies within.
-        
-        This function works by geocoding the address and then finding the point
-        that the returned lat/long returned lie within. 
-        """
 
-        lat, lng = self.geocode(address)
-        flat, flng = float(lat), float(lng)
-        return lat, lng, [(cb.state, cb.district) for cb in self.boundaries 
-                            if cb.contains((flng,flat))]
-        
+        This function works by geocoding the address and then finding the point
+        that the returned lat/long returned lie within.
+        """
+        if self.geocoder == self.GEOCODER_GMAPS:
+            lat, lng = self._google_geocode(address)
+        elif self.geocoder == self.GEOCODER_US:
+            lat, lng = self._geocoderus_geocode(address)
+
+        return self.lat_long_to_district(lat, lng)

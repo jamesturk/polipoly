@@ -18,14 +18,15 @@ import cgi
 import re
 from polipoly import AddressToDistrictService, GeocodingError
 
+PATH_TO_CDFILES = 'congdist/cd99_110'
+GEOCODER = AddressToDistrictService.GEOCODER_US
 GMAPS_API_KEY = 'define-me'
-PATH_TO_CDFILES = 'cd99_110'
 
 class ApiException(Exception):
 
     # these codes are in the 300s to fit the sunlight API
     STATUS_CODES = {
-        300: 'Google returned a server error when attempting to geocode',
+        300: 'Geocoder returned a server error when attempting to geocode',
         301: 'Empty address string',
         302: 'Unknown address',
         303: 'Prohibited address',
@@ -36,7 +37,7 @@ class ApiException(Exception):
 
     def __init__(self, code):
         self.code = code
-       
+
     def __str__(self):
         return '%d: %s' % (self.code, self.STATUS_CODES[self.code])
 
@@ -45,32 +46,32 @@ def main():
     fields = cgi.FieldStorage()
     addr = fields.getvalue('address') or ''
     output = fields.getvalue('output')
-    
+
     # discard blank addresses as error 301
     if re.match('^\s*$', addr):
         raise ApiException(301)
-    
+
     # discard PO Box addresses as error 305
     pobox = re.compile('[Pp]\.?[Oo]\.?\s*(?:box|Box|BOX)')
     if pobox.search(addr):
         raise ApiException(305)
 
     # create service and get a district
-    service = AddressToDistrictService(GMAPS_API_KEY, PATH_TO_CDFILES)
+    service = AddressToDistrictService(PATH_TO_CDFILES, GEOCODER, GMAPS_API_KEY)
     try:
         lat, lng, districts = service.address_to_district(addr)
     except GeocodingError, ge:
         # convert GeocodingError to API error code (300-303 and 320)
         err_dict = {500: 300, 601: 301, 602: 302, 603: 303, 620: 320}
         raise ApiException(err_dict.get(ge.code,304))
-    
+
     # 306: address did not fall within congressional district
     if len(districts) == 0:
         raise ApiException(306)
 
     # XML output
     if output == 'xml':
-        dist_str = '\n'.join(['  <district state="%s">%s</district>' % dist 
+        dist_str = '\n'.join(['  <district state="%s">%s</district>' % dist
                               for dist in districts])
         print 'Content-type: text/xml\n'
         print '''<results>
@@ -81,10 +82,10 @@ def main():
 %s
 </districts>
 </results>''' % (addr, lat, lng, dist_str)
-    
+
     # JSON output (default)
     else:
-        dist_str = ','.join(['{"state":"%s", "district":"%s"}' % dist 
+        dist_str = ','.join(['{"state":"%s", "district":"%s"}' % dist
                                 for dist in districts])
         print 'Content-type: application/json\n'
         print '''{"address":"%s", "latitude":"%s", "longitude":"%s",
