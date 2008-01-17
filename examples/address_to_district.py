@@ -20,7 +20,6 @@ import re
 from polipoly import AddressToDistrictService, GeocodingError
 
 PATH_TO_CDFILES = 'congdist/cd99_110'
-GEOCODER = AddressToDistrictService.GEOCODER_US
 GMAPS_API_KEY = None
 
 class ApiException(Exception):
@@ -65,7 +64,7 @@ def main():
         raise ApiException(305)
 
     # create service and get a district
-    service = AddressToDistrictService(PATH_TO_CDFILES, GEOCODER, GMAPS_API_KEY)
+    service = AddressToDistrictService(PATH_TO_CDFILES, geocoder, GMAPS_API_KEY)
     try:
         lat, lng, districts = service.address_to_district(addr)
     except GeocodingError, ge:
