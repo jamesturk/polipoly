@@ -287,9 +287,16 @@ class AddressToDistrictService(object):
 
     def lat_long_to_district(self, lat, lng):
         """ Obtain the district containing a given latitude and longitude."""
-        flat, flng = float(lat), float(lng)
-        return lat, lng, [(cb.state, cb.district) for cb in self.boundaries
-                            if cb.contains((flng,flat))]
+        flat, flng = float(lat), -abs(float(lng))
+        districts = []
+        for cb in self.boundaries:
+            if cb.contains((flng,flat)):
+                if cb.district == '98':
+                    cb.district = '00'
+                elif cb.district[0] == '0':
+                    cb.district = cb.district[1]
+                districts.append((cb.state, cb.district))
+        return lat, lng, districts
 
     def address_to_district(self, address):
         """Given an address returns the congressional district it lies within.
