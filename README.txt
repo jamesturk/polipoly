@@ -1,3 +1,12 @@
+NOTE: polipoly is deprecated and no longer maintained.  Due to the wide
+availability of better tools like GEOS <http://trac.osgeo.org/geos/> and
+GeoDjango <http://geodjango.org> it is no longer in use nor will it see
+any further development.
+
+~~~~~~~~~~
+old readme
+~~~~~~~~~~
+
 polipoly - Python library for dealing with political boundaries.  Enables 
     programatic conversion of latitudes/longitudes to political districts.
 
